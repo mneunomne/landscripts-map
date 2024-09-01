@@ -1,159 +1,144 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Image Zoom and Smooth Camera Movement</title>
+	<title>Image Overlay on Google Maps</title>
+	<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyABc2FYPPzxrAMu_Atv1JQ5O_KrYBuXxQo"></script>
 	<style>
 		body {
 			margin: 0;
-			overflow: hidden;
-			position: relative;
-		}
-
-		#canvas {
-			display: block;
-			position: absolute;
-			top: 0;
-			left: 0;
-		}
-
-		#svg-container {
-			position: absolute;
-			top: 0;
-			left: 0;
-			width: 100%;
+			padding: 0;
 			height: 100%;
-			pointer-events: none;
+			width: 100%;
+			overflow: hidden;
+		}
+
+		#map {
+			height: 100%;
+			width: 100%;
+			position: absolute;
 		}
 	</style>
-</head>
-
-<body>
-	<canvas id="canvas"></canvas>
-	<div id="svg-container"></div>
 	<script>
-		const imgWidth = 5083;
-		const imgHeight = 5090;
+		const kmlRepo = 'https://raw.githubusercontent.com/mneunomne/landscripts-kml/main/';
+		let map;
+		let isAnimating = false;
+		let pathCoordinates = []; // Array to store the path coordinates
+		let polyline; // Variable to hold the Polyline object
 
-		const canvas = document.getElementById('canvas');
-		const ctx = canvas.getContext('2d');
+		function initMap() {
+			// Define the bounds using the given lat/lng values
+			const imageBounds = {
+				north: -22.32638056,  // maxLat
+				south: -22.40520000,  // minLat
+				east: -43.01715833,   // maxLng
+				west: -43.10237778    // minLng
+			};
 
-		canvas.width = window.innerWidth;
-		canvas.height = window.innerHeight;
-
-		const img = new Image();
-		img.src = 'image.jpg'; // Provide the path to your large image
-
-		const points = []; // Array to store all the received points
-
-		let zoomLevel = 0.5; // Set to 50% zoom
-		let cameraX = imgWidth / 2; // Initial camera position (center of the image)
-		let cameraY = imgHeight / 2;
-
-		const easing = 0.05; // Easing factor for smooth movement
-
-		// Load SVG file
-		fetch('./barreiras.svg') // Provide the path to your SVG file
-			.then(response => response.text())
-			.then(svgText => {
-				const svgContainer = document.getElementById('svg-container');
-				svgContainer.innerHTML = svgText;
-				const svgElement = svgContainer.querySelector('svg');
-				svgElement.style.position = 'absolute';
-				svgElement.style.top = 0;
-				svgElement.style.left = 0;
-				svgElement.style.width = imgWidth + 'px';
-				svgElement.style.height = imgHeight + 'px';
-
-				// Initial draw after SVG is loaded
-				drawScene(svgElement);
+			// Create a map centered within the bounds
+			map = new google.maps.Map(document.getElementById("map"), {
+				center: { lat: (-22.40520000 + -22.32638056) / 2, lng: (-43.10237778 + -43.01715833) / 2 },
+				zoom: 16,
+				disableDefaultUI: true
 			});
 
-		// Connect to the WebSocket server
-		const socket = new WebSocket('ws://localhost:8080/');
+			// Specify the image to use as the overlay
+			const imageUrl = 'perfect_bounds.jpg';
+
+			// Create the ground overlay
+			const overlay = new google.maps.GroundOverlay(imageUrl, imageBounds);
+
+			// Add the overlay to the map
+			overlay.setMap(map);
+
+			// Set satellite view
+			map.setMapTypeId('satellite');
+
+			const barreiras = new google.maps.KmlLayer({
+				url: kmlRepo + 'barreiras_2.kml',
+				map: map,
+				preserveViewport: true
+			});
+
+			// Initialize the Polyline with an empty path
+			polyline = new google.maps.Polyline({
+				path: pathCoordinates,
+				geodesic: true,
+				strokeColor: '#0029FF',
+				strokeOpacity: 0.8,
+				strokeWeight: 2.2
+			});
+
+			// Add the polyline to the map
+			polyline.setMap(map); // 
+		}
+
+		function smoothPanTo(target) {
+			if (isAnimating) return;
+
+			const currentCenter = map.getCenter();
+			const startLat = currentCenter.lat();
+			const startLng = currentCenter.lng();
+			const endLat = target.lat;
+			const endLng = target.lng;
+			const duration = Math.random() * 10000 + 1000; // Duration of the animation in milliseconds
+			const frameRate = 24; // Frames per second
+			const totalFrames = Math.round((duration / 1000) * frameRate);
+			let currentFrame = 0;
+
+			isAnimating = true;
+
+			function animate() {
+				currentFrame++;
+				const progress = easeInOutQuad(currentFrame / totalFrames);
+				const lat = startLat + (endLat - startLat) * progress;
+				const lng = startLng + (endLng - startLng) * progress;
+				map.setCenter(new google.maps.LatLng(lat, lng));
+
+				if (currentFrame < totalFrames) {
+					requestAnimationFrame(animate);
+				} else {
+					isAnimating = false;
+				}
+			}
+
+			animate();
+		}
+
+		// Easing function for smooth animation
+		function easeInOutQuad(t) {
+			return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+		}
+
+		// WebSocket integration
+		const socket = new WebSocket('ws://192.168.0.100:8080/');
 
 		// When a message is received from the server
 		socket.onmessage = function (event) {
 			const position = JSON.parse(event.data);
-			addPoint(position.x, position.y);
-		};
+			const latLng = new google.maps.LatLng(position.lat, position.lng);
 
-		function addPoint(x, y) {
-			// Map position from [0, 1000] to [0, 5090]
-			const mappedX = map(x, 0, 1000, 0, imgWidth);
-			const mappedY = map(y, 0, 1000, 0, imgHeight);
+			// Add the new position to the pathCoordinates array
+			pathCoordinates.push(latLng);
 
-			// Add the mapped position to the points array
-			points.push({ x: mappedX, y: mappedY });
-		}
+			// Update the polyline path with the new coordinates
+			polyline.setPath(pathCoordinates);
 
-		function drawScene(svgElement) {
-			// Calculate zoomed image dimensions
-			const zoomedWidth = imgWidth * zoomLevel;
-			const zoomedHeight = imgHeight * zoomLevel;
-
-			if (points.length > 0) {
-				const lastPoint = points[points.length - 1];
-
-				// Smoothly move camera towards the last point using linear interpolation (lerp)
-				cameraX = lerp(cameraX, lastPoint.x, easing);
-				cameraY = lerp(cameraY, lastPoint.y, easing);
-
-				// Ensure camera doesn't go out of bounds
-				const halfCanvasWidth = canvas.width / 2;
-				const halfCanvasHeight = canvas.height / 2;
-				cameraX = Math.max(halfCanvasWidth / zoomLevel, Math.min(imgWidth - halfCanvasWidth / zoomLevel, cameraX));
-				cameraY = Math.max(halfCanvasHeight / zoomLevel, Math.min(imgHeight - halfCanvasHeight / zoomLevel, cameraY));
-
-				// Calculate offsets to center the camera on the cameraX, cameraY position
-				const offsetX = canvas.width / 2 - cameraX * zoomLevel;
-				const offsetY = canvas.height / 2 - cameraY * zoomLevel;
-
-				// Clear the canvas
-				ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-				// Draw the zoomed image centered on the camera position
-				ctx.drawImage(img, offsetX, offsetY, zoomedWidth, zoomedHeight);
-
-				// Draw the lines connecting all the points
-				ctx.beginPath();
-				ctx.strokeStyle = 'red';
-				ctx.lineWidth = 2;
-
-				// Loop through the points and draw lines connecting them
-				for (let i = 0; i < points.length; i++) {
-					const px = offsetX + points[i].x * zoomLevel;
-					const py = offsetY + points[i].y * zoomLevel;
-					if (i === 0) {
-						ctx.moveTo(px, py);
-					} else {
-						ctx.lineTo(px, py);
-					}
-				}
-
-				ctx.stroke();
-
-				// Update the SVG overlay position and scale to match the camera movement and zoom
-				const svgTransform = `translate(${offsetX-1050}px, ${offsetY-1750}px) scale(${zoomLevel})`;
-				svgElement.style.transform = svgTransform;
+			// if coordinates are bigger than 100 remove the first one
+			if (pathCoordinates.length > 500) {
+				pathCoordinates.shift();
 			}
 
-			// Request animation frame for smooth drawing
-			requestAnimationFrame(() => drawScene(svgElement));
-		}
+			// Smoothly pan the map to the new position
+			smoothPanTo(position);
 
-		// Mapping function
-		function map(value, start1, stop1, start2, stop2) {
-			return ((value - start1) / (stop1 - start1)) * (stop2 - start2) + start2;
-		}
-
-		// Linear interpolation function
-		function lerp(start, end, t) {
-			return start + (end - start) * t;
-		}
+			document.getElementById('map').style.height = '103%';
+		};
 	</script>
+</head>
+
+<body onload="initMap()">
+	<div id="map" style="height: 100%; width: 100%;"></div>
 </body>
 
 </html>
