@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>Image Overlay on Google Maps</title>
+	<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCiG69KxyAao6tiuRhBH5ZinHoquFTu6Ww"></script>
+	<style>
+		body {
+			margin: 0;
+			padding: 0;
+			height: 100vh;
+			width: 100%;
+			overflow: hidden;
+			position: absolute;
+		}
+
+		.map2-wrapper {
+			position: absolute;
+			top: 0;
+			right: 0;
+			width: 50%;
+			height: 100%;
+			overflow: hidden;
+		}
+
+		#map {
+			height: 103%;
+			width: 50%;
+			position: absolute;
+			overflow: hidden;
+			left: 0;
+			filter: brightness(1.4) contrast(1);
+		}
+
+		#map2 {
+			height: 100%;
+			width: 100%;
+			position: absolute;
+
+		}
+
+		img[src] {
+			opacity: 1 !important;
+		}
+
+		.cover {
+			position: fixed;
+		}
+
+		#top-cover {
+			width: 100%;
+			height: 100vh;
+			background: black;
+			clip-path: polygon(0% 0%, 0% 35px, 100% 14px, 100% 0%);
+			pointer-events: none;
+		}
+
+		#right-cover {
+			width: 100%;
+			height: 100vh;
+			background: black;
+			clip-path: polygon(0% 0%, 38px 100%,  0% 100%);
+			pointer-events: none;
+		}
+
+		#bottom-cover {
+			bottom: 0;
+			left: 0;
+			width: 100%;
+			height: 40px;
+			background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.5));
+		}
+
+		#left-cover {
+			width: 100%;
+			height: 100vh;
+			background: black;
+			clip-path: polygon(100% 0%, calc(100% - 25px) 100%, 100% 100%);
+			pointer-events: none;
+		}
+
+		#mid-cover {
+			top: 0;
+			left: 956px;
+			width: 29px;
+			height: 100%;
+			background: rgba(0, 0, 0, 1);
+		}
+	</style>
+	<script>
+		const kmlRepo = 'https://raw.githubusercontent.com/mneunomne/landscripts-kml/main/';
+		let map;
+		let map2;
+		let isAnimating = false;
+		let pathCoordinates = []; // Array to store the path coordinates
+		let polyline; // Variable to hold the Polyline object
+		let polyline2; // Variable to hold the Polyline object
+
+		setInterval(() => {
+			//document.body.style.height = '103vh'
+			document.getElementById('map').style.height = '103%'
+			document.getElementById('map2').style.height = '103%'
+		}, 100);
+
+		function initMap() {
+			// Define the bounds using the given lat/lng values
+			const imageBounds = {
+				north: -22.32638056,  // maxLat
+				south: -22.40520000,  // minLat
+				east: -43.01715833,   // maxLng
+				west: -43.10237778    // minLng
+			};
+
+			// Create a map centered within the bounds
+			map = new google.maps.Map(document.getElementById("map"), {
+				center: { lat: (-22.40520000 + -22.32638056) / 2, lng: (-43.10237778 + -43.01715833) / 2 },
+				zoom: 16,
+				disableDefaultUI: true,
+				backgroundColor: "black",
+			});
+
+			map2 = new google.maps.Map(document.getElementById("map2"), {
+				center: { lat: (-22.40520000 + -22.32638056) / 2, lng: (-43.10237778 + -43.01715833) / 2 },
+				zoom: 16,
+				disableDefaultUI: true,
+				backgroundColor: "black" // <--- try this
+			});
+
+			// Specify the image to use as the overlay
+			const imageUrl = 'perfect_bounds copy 2.jpg';
+
+			// Create the ground overlay
+			const overlay = new google.maps.GroundOverlay(imageUrl, imageBounds);
+
+			// Add the overlay to the map
+			overlay.setMap(map);
+
+			// Set satellite view
+			map.setMapTypeId('satellite');
+			map2.setMapTypeId('satellite');
+
+			const barreiras = new google.maps.KmlLayer({
+				url: kmlRepo + 'barreiras_2.kml',
+				map: map,
+				preserveViewport: true,
+				strokeOpacity: 1,
+			});
+
+			const barreiras2 = new google.maps.KmlLayer({
+				url: kmlRepo + 'barreiras_2.kml',
+				map: map2,
+				preserveViewport: true,
+				strokeOpacity: 1,
+			});
+
+			// Initialize the Polyline with an empty path
+			polyline = new google.maps.Polyline({
+				path: pathCoordinates,
+				geodesic: true,
+				strokeColor: '#1b69fa',
+				strokeOpacity: 1,
+				strokeWeight: 4.2
+			});
+
+			// Initialize the Polyline with an empty path
+			polyline2 = new google.maps.Polyline({
+				path: pathCoordinates,
+				geodesic: true,
+				strokeColor: '#357fff',
+				strokeOpacity: 1,
+				strokeWeight: 4.2
+			});
+
+			// Add the polyline to the map
+			polyline.setMap(map); // 
+			polyline2.setMap(map2); // 
+		}
+
+		function smoothPanTo(target) {
+			if (isAnimating) return;
+
+			// Define the bounds
+			const minLat = -22.40520000;
+			const maxLat = -22.32638056;
+			const minLng = -43.10237778;
+			const maxLng = -43.01715833;
+
+			// Get the current center of the map
+			const currentCenter = map.getCenter();
+			const startLat = currentCenter.lat();
+			const startLng = currentCenter.lng();
+			let endLat = target.lat;
+			let endLng = target.lng;
+
+			// Get the map's bounds
+			const bounds = map.getBounds();
+			const ne = bounds.getNorthEast();
+			const sw = bounds.getSouthWest();
+
+			// Calculate the width of the map in degrees
+			const mapWidth = Math.abs(ne.lng() - sw.lng());
+			const mapHeight = Math.abs(ne.lat() - sw.lat());
+
+			// Ensure the target coordinates are within the bounds of the map
+			if (endLat < minLat+mapHeight/2) endLat = minLat+mapHeight/2;
+			if (endLat > maxLat-mapHeight/2) endLat = maxLat-mapHeight/2;
+			if (endLng < minLng+mapWidth/2) endLng = minLng+mapWidth/2;
+			if (endLng > maxLng-mapWidth/2) endLng = maxLng-mapWidth/2;
+			
+
+			// Calculate the offset for 75% width
+			const offsetLng = mapWidth * 0.25;
+
+			// Apply the offset to the target coordinates for map2
+			const adjustedEndLng = endLng - offsetLng;
+
+			const duration = Math.random() * 5000 + 1000; // Duration of the animation in milliseconds
+			const frameRate = 24; // Frames per second
+			const totalFrames = Math.round((duration / 1000) * frameRate);
+			let currentFrame = 0;
+
+			isAnimating = true;
+
+			function animate() {
+				currentFrame++;
+				const progress = easeInOutQuad(currentFrame / totalFrames);
+				const lat = startLat + (endLat - startLat) * progress;
+				const lng = startLng + (endLng - startLng) * progress;
+
+				map.setCenter(new google.maps.LatLng(lat, lng));
+				map2.setCenter(new google.maps.LatLng(lat, lng));
+
+				if (currentFrame < totalFrames) {
+				requestAnimationFrame(animate);
+				} else {
+				isAnimating = false;
+				}
+			}
+
+			animate();
+			}
+
+		// Easing function for smooth animation
+		function easeInOutQuad(t) {
+			return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+		}
+
+		// WebSocket integration
+		const socket = new WebSocket('ws://0.0.0.0:8080/');
+
+		// When a message is received from the server
+		socket.onmessage = function (event) {
+			const position = JSON.parse(event.data);
+			const latLng = new google.maps.LatLng(position.lat, position.lng);
+
+			// Add the new position to the pathCoordinates array
+			pathCoordinates.push(latLng);
+
+			// Update the polyline path with the new coordinates
+			polyline.setPath(pathCoordinates);
+			polyline2.setPath(pathCoordinates);
+
+			// if coordinates are bigger than 100 remove the first one
+			if (pathCoordinates.length > 1000) {
+				pathCoordinates.shift();
+			}
+
+			// Smoothly pan the map to the new position
+			smoothPanTo(position);
+		};
+
+		// on press key
+		document.addEventListener('keydown', function (event) {
+			if (event.key === 'a') {
+				smoothPanTo({ lat: -22.32638056 - Math.random() * 0.03, lng: -43.01715833 - Math.random() * 0.03 });
+			}
+		});
+	</script>
+</head>
+
+<body onload="initMap()">
+	<div id="map" style="height: 100%; width: 50%;"></div>
+	<div class="map2-wrapper">
+		<div id="map2" style="height: 100%; width: 100%;"></div>
+	</div>
+	<div class="cover" id="mid-cover"></div>
+	<div class="cover" id="top-cover"></div>
+	<div class="cover" id="right-cover"></div>
+	<div class="cover" id="bottom-cover"></div>
+	<div class="cover" id="left-cover"></div>
+</body>
+
+</html>
