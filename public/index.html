@@ -82,7 +82,7 @@
                 geodesic: true,
                 strokeColor: '#1b69fa',
                 strokeOpacity: 1,
-                strokeWeight: 4.2
+                strokeWeight: 3
             });
 
             const barreiras = new google.maps.KmlLayer({
@@ -110,7 +110,7 @@
                 polyline.setPath(pathCoordinates);
 
                 // if coordinates are bigger than 1000 remove the first one
-                if (pathCoordinates.length > 1000) {
+                if (pathCoordinates.length > 1000000000) {
                     pathCoordinates.shift();
                 }
 
