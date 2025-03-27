@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>Image Overlay on Google Maps</title>
+	<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCiG69KxyAao6tiuRhBH5ZinHoquFTu6Ww"></script>
+	<style>
+		body {
+			margin: 0;
+			padding: 0;
+			height: 100vh;
+			width: 100%;
+			overflow: hidden;
+			position: absolute;
+		}
+
+		#map {
+			height: 100%;
+			width: 100%;
+			position: absolute;
+			overflow: hidden;
+			left: 0;
+			filter: brightness(1.4) contrast(1);
+		}
+	</style>
+	<script>
+		const kmlRepo = 'https://raw.githubusercontent.com/mneunomne/landscripts-kml/main/';
+		let map;
+		let isAnimating = false;
+		let pathCoordinates = [];
+		let polyline;
+
+		function initMap() {
+			const imageBounds = {
+				north: -22.32638056,
+				south: -22.40520000,
+				east: -43.01715833,
+				west: -43.10237778
+			};
+
+			map = new google.maps.Map(document.getElementById("map"), {
+				center: { lat: (-22.40520000 + -22.32638056) / 2, lng: (-43.10237778 + -43.01715833) / 2 },
+				zoom: 16,
+				disableDefaultUI: true,
+				backgroundColor: "black",
+				mapTypeId: 'satellite'
+			});
+
+			const imageUrl = 'perfect_bounds copy 2.jpg';
+			const overlay = new google.maps.GroundOverlay(imageUrl, imageBounds);
+			overlay.setMap(map);
+
+			const barreiras = new google.maps.KmlLayer({
+				url: kmlRepo + 'barreiras_2.kml',
+				map: map,
+				preserveViewport: true,
+				strokeOpacity: 1,
+			});
+
+			polyline = new google.maps.Polyline({
+				path: pathCoordinates,
+				geodesic: true,
+				strokeColor: '#1b69fa',
+				strokeOpacity: 1,
+				strokeWeight: 4.2
+			});
+			polyline.setMap(map);
+		}
+	</script>
+</head>
+
+<body onload="initMap()">
+	<div id="map"></div>
+</body>
+
+</html>
