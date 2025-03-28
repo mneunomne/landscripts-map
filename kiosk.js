@@ -3,6 +3,8 @@ const { exec } = require('child_process');
 
 let mainWindow;
 
+console.log('Starting Electron app...', app);
+
 app.whenReady().then(() => {
   // Start the Express server
   exec('node server.js', (err, stdout, stderr) => {
