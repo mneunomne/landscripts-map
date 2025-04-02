@@ -27,6 +27,10 @@ app.whenReady().then(() => {
 
   mainWindow.loadURL('http://localhost:3000');
 
+  //win.webContents.openDevTools()
+
+
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
